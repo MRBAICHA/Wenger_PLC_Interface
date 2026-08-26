@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+Wenger_Python/venv/
+Wenger_Python/__pycache__/
+
+# เผื่อมีใครสร้าง .env ไว้ทดสอบ local ห้าม commit
+.env
+*.env
+
+# PM2 process config — มี WENGER_PG_PASSWORD จริงฝังอยู่ ห้าม commit เด็ดขาด
+ecosystem.config.js
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings (เครื่องใครเครื่องมัน ไม่ share)
+.claude/settings.local.json
