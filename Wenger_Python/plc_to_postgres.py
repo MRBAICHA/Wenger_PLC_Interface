@@ -289,7 +289,21 @@ def run(poll_interval):
                             log.info("บันทึกข้อมูลสำเร็จ %d row", len(rows))
                         except Exception as e:
                             log.error("เกิดข้อผิดพลาดระหว่าง read/insert: %s", e)
-                            pg_conn.rollback()
+                            try:
+                                pg_conn.rollback()
+                            except Exception:
+                                # rollback() เองก็พัง แปลว่า pg_conn ตายจริง (เช่น Postgres ปิด
+                                # connection ทิ้งตอนดิสก์เต็ม) — เดิม code จุดนี้ไม่เคยเปิด
+                                # connection ใหม่เลย มีแต่ logic reconnect ฝั่ง PLC เท่านั้น ทำให้
+                                # insert พังตลอดไปแม้ PLC จะเชื่อมต่อสำเร็จก็ตาม จนกว่าจะมีคน
+                                # restart process เอง (เกิดขึ้นจริงกับ coater-plc-logger/
+                                # wenger-plc-logger วันที่ 2026-08-28) — เปิด connection ใหม่แทน
+                                log.error("PostgreSQL connection ใช้งานไม่ได้แล้ว — เปิด connection ใหม่")
+                                try:
+                                    pg_conn.close()
+                                except Exception:
+                                    pass
+                                pg_conn = get_pg_connection()
 
                         elapsed = time.time() - loop_start
                         time.sleep(max(0, poll_interval - elapsed))

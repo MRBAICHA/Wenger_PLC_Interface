@@ -14,6 +14,10 @@ Wenger_Python/__pycache__/
 # PM2 process config — มี WENGER_PG_PASSWORD จริงฝังอยู่ ห้าม commit เด็ดขาด
 ecosystem.config.js
 
+# PM2 log output — grows unbounded (hundreds of MB), never source
+logs/
+*.log
+
 # OS / editor
 .DS_Store
 Thumbs.db
