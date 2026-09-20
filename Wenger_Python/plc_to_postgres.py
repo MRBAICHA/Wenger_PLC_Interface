@@ -279,6 +279,18 @@ def run(poll_interval):
 
                     log.info("เชื่อมต่อ PLC สำเร็จ: %s (%s)", plc.info.get("product_name", "unknown"), PLC_IP)
 
+                    # นับ read/insert ที่พังติดกัน — ถ้าเกิน CONSECUTIVE_FAILURE_LIMIT ให้ break
+                    # ออกจาก loop ชั้นในเพื่อบังคับสร้าง LogixDriver connection ใหม่ (กลับไปเข้า
+                    # `with LogixDriver(...)` ชั้นนอกอีกรอบ). ก่อนแก้ไข exception จาก plc.read()
+                    # ถูก catch ไว้ที่ loop ชั้นในนี้เสมอ แล้ววนอ่านซ้ำบน connection เดิมที่เสียไป
+                    # แล้วต่อไปเรื่อย ๆ ไม่เคยหลุดไปถึง except ชั้นนอก (บรรทัดล่าง ๆ) ที่ตั้งใจให้
+                    # reconnect — ยืนยันจาก log จริง (wenger-plc-logger, 2026-09-14 09:29:54 เป็นต้น
+                    # มา): "failed to send message" (แปลว่า TCP socket ไปยัง PLC ขาดไปแล้วจริง ๆ)
+                    # ซ้ำทุก 10 วิ นานกว่า 23 ชม. โดยไม่มี "หลุดจาก PLC" ปรากฏใน log เลยสักครั้ง —
+                    # ค้างอยู่แบบนี้ตลอดไปจนกว่าจะมีคน restart process เอง
+                    consecutive_failures = 0
+                    CONSECUTIVE_FAILURE_LIMIT = 3
+
                     while True:
                         loop_start = time.time()
                         ts = datetime.now(timezone.utc)
@@ -287,8 +299,10 @@ def run(poll_interval):
                             rows = filter_changed(to_rows(results, ts), last_values)
                             insert_readings(pg_conn, rows)
                             log.info("บันทึกข้อมูลสำเร็จ %d row", len(rows))
+                            consecutive_failures = 0
                         except Exception as e:
-                            log.error("เกิดข้อผิดพลาดระหว่าง read/insert: %s", e)
+                            consecutive_failures += 1
+                            log.error("เกิดข้อผิดพลาดระหว่าง read/insert (ติดกัน %d ครั้ง): %s", consecutive_failures, e)
                             try:
                                 pg_conn.rollback()
                             except Exception:
@@ -304,6 +318,13 @@ def run(poll_interval):
                                 except Exception:
                                     pass
                                 pg_conn = get_pg_connection()
+
+                            if consecutive_failures >= CONSECUTIVE_FAILURE_LIMIT:
+                                log.error(
+                                    "read/insert พังติดกัน %d ครั้ง — ถือว่า PLC connection ตายแล้ว, จะปิดแล้วเชื่อมต่อใหม่",
+                                    consecutive_failures,
+                                )
+                                break
 
                         elapsed = time.time() - loop_start
                         time.sleep(max(0, poll_interval - elapsed))
