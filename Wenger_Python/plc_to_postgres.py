@@ -201,8 +201,12 @@ def ensure_table(conn):
                 value_num   DOUBLE PRECISION
             );
         """)
+        # ใช้ชื่อเดียวกับ index ที่ extrusion_plc_logger.js / ตาราง plc_readings มีอยู่แล้ว
+        # (ix_extrusion_readings_lookup) — เดิมชื่อ idx_plc_readings_plc_tag_ts ซึ่งซ้ำซ้อน 12 GB
+        # และถูกลบไป 2026-10-06; ถ้าใช้ชื่อเดิม ทุกครั้งที่สคริปต์นี้ start จะสร้างใหม่แบบล็อกตาราง
+        # ทำให้ logger ของ Extruder ทุก line เขียนข้อมูลไม่ได้จนกว่าจะสร้างเสร็จ
         cur.execute(f"""
-            CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_plc_tag_ts
+            CREATE INDEX IF NOT EXISTS ix_extrusion_readings_lookup
             ON {TABLE_NAME} (plc_name, tag_name, ts DESC);
         """)
     conn.commit()
